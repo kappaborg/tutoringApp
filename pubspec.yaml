@@ -1,0 +1,72 @@
+name: picture_book
+description: Offline-first, cross-platform tap-to-read picture book.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  archive: ^3.6.1
+  crypto: ^3.0.5
+  file_picker: ^8.1.2
+  flutter_tts: ^4.0.2
+  image: ^4.2.0
+  image_picker: ^1.1.2
+  intl: ^0.20.2
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  pdfrx: ^1.0.97
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+  sqflite: ^2.3.3+1
+  sqflite_common_ffi: ^2.3.3
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.4
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/seed/
+    - assets/dict/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
+  image_path: "assets/icon/app_icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#4F6DDE"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+flutter_native_splash:
+  color: "#4F6DDE"
+  color_dark: "#1A2C66"
+  image: "assets/icon/app_icon_foreground.png"
+  image_dark: "assets/icon/app_icon_foreground.png"
+  android_12:
+    color: "#4F6DDE"
+    color_dark: "#1A2C66"
+    image: "assets/icon/app_icon_foreground.png"
+    image_dark: "assets/icon/app_icon_foreground.png"
+  ios: true
+  android: true
+  web: false

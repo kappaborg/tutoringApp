@@ -1,0 +1,37 @@
+<!--
+  Merge into android/app/src/main/AndroidManifest.xml.
+
+  Key points:
+    • Add `xmlns:tools="http://schemas.android.com/tools"` to the <manifest> root.
+    • Explicitly NEUTRALIZE any transitive INTERNET permission with tools:node="remove".
+    • Declare READ_MEDIA_IMAGES (API 33+) and READ_EXTERNAL_STORAGE (<=API 32).
+    • <queries> block lets Android resolve the TTS service for flutter_tts.
+-->
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools"
+          package="com.example.picturebook">
+
+  <!-- Explicitly REMOVE any INTERNET permission added by transitive deps. -->
+  <uses-permission android:name="android.permission.INTERNET"
+                   tools:node="remove"/>
+
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                   android:maxSdkVersion="32"/>
+
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.TTS_SERVICE"/>
+    </intent>
+    <intent>
+      <action android:name="android.speech.tts.engine.CHECK_TTS_DATA"/>
+    </intent>
+  </queries>
+
+  <application
+      android:label="Picture Book"
+      android:icon="@mipmap/ic_launcher">
+    <!-- Existing flutter activity declarations remain unchanged -->
+  </application>
+</manifest>

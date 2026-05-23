@@ -1,0 +1,18 @@
+The shipped `ecdict.db` is a *starter* English→Chinese dictionary (~88
+hand-picked picture-book words). It is original content under the same
+MIT license as this project.
+
+To replace it with the full ECDICT lite (~110 000 entries):
+
+1. Download `ecdict.csv` from https://github.com/skywind3000/ECDICT
+   (MIT license, mirror anywhere offline-friendly).
+2. From the project root:
+
+       dart run tool/build_dict.dart path/to/ecdict.csv
+
+3. Commit the resulting `assets/dict/ecdict.db`.
+
+Either way the .db is committed; the app NEVER fetches it at runtime.
+
+ECDICT itself: https://github.com/skywind3000/ECDICT — MIT License.
+Copyright (c) 2017 LinWei (skywind3000).
