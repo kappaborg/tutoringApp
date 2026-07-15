@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
@@ -58,7 +57,7 @@ class PdfImportService {
 
   /// Lets the user pick a local PDF. Returns the path or `null` if cancelled.
   Future<String?> pickPdf() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
     );
@@ -146,21 +145,20 @@ class PdfImportService {
     final image = await page.render(
       fullWidth: targetW.toDouble(),
       fullHeight: targetH.toDouble(),
-      backgroundColor: const ui.Color(0xFFFFFFFF),
+      backgroundColor: 0xFFFFFFFF,
     );
     if (image == null) {
       throw const FormatException('pdfrx returned null image for page');
     }
     try {
       final raw = image.pixels;
-      final order = image.format == ui.PixelFormat.bgra8888
-          ? img.ChannelOrder.bgra
-          : img.ChannelOrder.rgba;
+      // pdfrx 2.x always returns BGRA8888 — the runtime format accessor was
+      // dropped along with the legacy renderer.
       final encoded = img.Image.fromBytes(
         width: image.width,
         height: image.height,
         bytes: _bytesAsByteBuffer(raw),
-        order: order,
+        order: img.ChannelOrder.bgra,
         numChannels: 4,
       );
       final jpeg = img.encodeJpg(encoded, quality: _jpegQuality);
@@ -179,6 +177,7 @@ class PdfImportService {
   Future<String> _extractText(PdfPage page) async {
     try {
       final text = await page.loadText();
+      if (text == null) return '';
       final raw = text.fullText.trim();
       if (raw.isEmpty) return '';
       return _normalize(raw);

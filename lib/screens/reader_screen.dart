@@ -13,7 +13,7 @@ import '../services/image_storage_service.dart';
 import '../services/log_service.dart';
 import '../services/prefs_service.dart';
 import '../services/translation_lookup.dart';
-import '../services/tts_service.dart';
+import '../services/tts_router.dart';
 import '../services/word_examples_service.dart';
 import '../state/admin_auth.dart';
 import '../state/library_notifier.dart';
@@ -27,8 +27,22 @@ import '../widgets/reader_toolbar.dart';
 import '../widgets/reading_progress_dots.dart';
 import '../widgets/sentence_translation_sheet.dart';
 import '../widgets/word_meaning_sheet.dart';
+import 'full_screen_image.dart';
 import '../widgets/word_span.dart';
 import 'pin_gate_screen.dart';
+
+/// Resolution order for "is there a pre-rendered audio clip for this tap?":
+///   1. exact match in [BookPage.sentenceAudioMap]
+///   2. [BookPage.audioPath] when the tapped sentence IS the whole page text
+///   3. null → fall through to live inference
+String? _bundledAudioFor(BookPage page, String sentence) {
+  final mapped = page.sentenceAudioMap[sentence];
+  if (mapped != null && mapped.isNotEmpty) return mapped;
+  if (sentence == page.sentenceText && page.audioPath.isNotEmpty) {
+    return page.audioPath;
+  }
+  return null;
+}
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -69,7 +83,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
-      unawaited(context.read<TtsService>().stop());
+      unawaited(context.read<TtsRouter>().stop());
       context.read<AdminAuth>().lock();
     }
   }
@@ -77,8 +91,10 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   Future<void> _maybeShowVoiceTip() async {
     final prefs = context.read<PrefsService>();
     if (prefs.voiceWarningShown) return;
-    final tts = context.read<TtsService>();
-    if (tts.availability != TtsAvailability.noVoice) return;
+    final tts = context.read<TtsRouter>();
+    // Skip the tip if EITHER the bundled neural voice is ready OR the
+    // system TTS has a usable voice. We only warn when nothing works.
+    if (tts.hasAnyVoice) return;
     if (!mounted) return;
     final msg = Platform.isIOS || Platform.isMacOS
         ? 'No offline voice detected. Install one in Settings → Accessibility → Spoken Content.'
@@ -122,7 +138,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   // ── Word-mode word tap ─────────────────────────────────────────────────
   Future<void> _onWordTap(Token token) async {
     final lib = context.read<LibraryNotifier>();
-    final tts = context.read<TtsService>();
+    final tts = context.read<TtsRouter>();
     final settings = context.read<SettingsNotifier>();
     final auth = context.read<AdminAuth>();
     final lookup = context.read<TranslationLookup>();
@@ -237,13 +253,19 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
     String sentence,
     int totalSentencesOnPage,
   ) async {
-    final tts = context.read<TtsService>();
+    final tts = context.read<TtsRouter>();
     final auth = context.read<AdminAuth>();
     final lookup = context.read<TranslationLookup>();
     final isWide = MediaQuery.of(context).size.width >= 600;
 
     await tts.stop();
-    unawaited(tts.speakSentence(sentence));
+    // Bundled audio resolution order: exact sentence match in the
+    // per-sentence map → whole-page audio if sentence equals page text →
+    // null (live inference).
+    final bundled = _bundledAudioFor(page, sentence);
+    unawaited(
+      tts.speakSentence(sentence, preRenderedAudioRelPath: bundled),
+    );
 
     Future<void> openEditor() async {
       Navigator.of(context).pop();
@@ -272,7 +294,10 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
       english: sentence,
       chineseFuture: chineseFuture,
       teacherUnlocked: auth.isUnlocked,
-      onSpeakAgain: () => tts.speakSentence(sentence),
+      onSpeakAgain: () => tts.speakSentence(
+        sentence,
+        preRenderedAudioRelPath: bundled,
+      ),
       onEdit: auth.isUnlocked ? openEditor : null,
     );
 
@@ -302,7 +327,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
     final lib = context.watch<LibraryNotifier>();
-    final tts = context.watch<TtsService>();
+    final tts = context.watch<TtsRouter>();
     final settings = context.watch<SettingsNotifier>();
     final font = settings.dyslexiaFont ? 'OpenDyslexic' : null;
 
@@ -314,7 +339,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
                 books: lib.books,
                 current: lib.currentBook,
                 onChanged: (b) async {
-                  final ttsLocal = context.read<TtsService>();
+                  final ttsLocal = context.read<TtsRouter>();
                   final library = context.read<LibraryNotifier>();
                   await ttsLocal.stop();
                   await library.selectBook(b);
@@ -341,7 +366,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   Widget _buildBody(
     BuildContext context,
     LibraryNotifier lib,
-    TtsService tts,
+    TtsRouter tts,
     SettingsNotifier settings,
     String? fontFamily,
   ) {
@@ -416,7 +441,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   }
 
   Future<void> _changePage({required int delta}) async {
-    final tts = context.read<TtsService>();
+    final tts = context.read<TtsRouter>();
     final lib = context.read<LibraryNotifier>();
     final prefs = context.read<PrefsService>();
     final atLastPage = lib.pageIndex >= lib.pages.length - 1;
@@ -522,10 +547,28 @@ class _PageImageState extends State<_PageImage> {
         }
         // ValueKey ensures Flutter rebuilds the Image widget when the path
         // changes (otherwise it can serve a cached image from the same slot).
-        return Image.file(
-          r.file,
-          key: ValueKey(widget.page.imagePath),
-          fit: BoxFit.contain,
+        final heroTag = 'page-image-${widget.page.imagePath}';
+        return GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                opaque: false,
+                barrierColor: Colors.black,
+                pageBuilder: (_, __, ___) => FullScreenImageView(
+                  file: r.file,
+                  heroTag: heroTag,
+                ),
+              ),
+            );
+          },
+          child: Hero(
+            tag: heroTag,
+            child: Image.file(
+              r.file,
+              key: ValueKey(widget.page.imagePath),
+              fit: BoxFit.contain,
+            ),
+          ),
         );
       },
     );
@@ -552,7 +595,7 @@ class _SentenceArea extends StatelessWidget {
   final BookPage page;
   final List<String> sentences;
   final Map<String, WordMeaning> wordsByKey;
-  final TtsService tts;
+  final TtsRouter tts;
   final String? fontFamily;
   final ReadingMode mode;
   final ValueChanged<Token> onWordTap;
@@ -594,7 +637,11 @@ class _SentenceArea extends StatelessWidget {
       child: InkWell(
         onTap: () async {
           try {
-            await tts.speakSentence(page.sentenceText);
+            await tts.speakSentence(
+              page.sentenceText,
+              preRenderedAudioRelPath:
+                  _bundledAudioFor(page, page.sentenceText),
+            );
           } catch (e, st) {
             LogService.instance.error('Speak sentence failed', e, st);
           }

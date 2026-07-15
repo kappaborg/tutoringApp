@@ -11,18 +11,22 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  archive: ^3.6.1
+  archive: ^4.0.9
   crypto: ^3.0.5
-  file_picker: ^8.1.2
+  # Pure-Dart Ed25519 for offline license-code validation.
+  cryptography: ^2.7.0
+  file_picker: ^11.0.2
   flutter_tts: ^4.0.2
   image: ^4.2.0
   image_picker: ^1.1.2
   intl: ^0.20.2
+  just_audio: ^0.10.4
   path: ^1.9.0
   path_provider: ^2.1.4
-  pdfrx: ^1.0.97
+  pdfrx: ^2.2.24
   provider: ^6.1.2
   shared_preferences: ^2.3.2
+  sherpa_onnx: ^1.13.2
   sqflite: ^2.3.3+1
   sqflite_common_ffi: ^2.3.3
   uuid: ^4.5.1
@@ -30,17 +34,59 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.4
   path_provider_platform_interface: ^2.1.2
   plugin_platform_interface: ^2.1.8
+  # Used only by tool/issue_license.dart to render the activation QR.
+  qr: ^3.0.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/seed/
+    - assets/seed/oxford/
     - assets/dict/
+    - assets/voices/
+    - assets/voices/kokoro/
+    - assets/voices/kokoro/espeak-ng-data/
+    - assets/voices/kokoro/espeak-ng-data/lang/
+    - assets/voices/kokoro/espeak-ng-data/lang/aav/
+    - assets/voices/kokoro/espeak-ng-data/lang/art/
+    - assets/voices/kokoro/espeak-ng-data/lang/azc/
+    - assets/voices/kokoro/espeak-ng-data/lang/bat/
+    - assets/voices/kokoro/espeak-ng-data/lang/bnt/
+    - assets/voices/kokoro/espeak-ng-data/lang/ccs/
+    - assets/voices/kokoro/espeak-ng-data/lang/cel/
+    - assets/voices/kokoro/espeak-ng-data/lang/cus/
+    - assets/voices/kokoro/espeak-ng-data/lang/dra/
+    - assets/voices/kokoro/espeak-ng-data/lang/esx/
+    - assets/voices/kokoro/espeak-ng-data/lang/gmq/
+    - assets/voices/kokoro/espeak-ng-data/lang/gmw/
+    - assets/voices/kokoro/espeak-ng-data/lang/grk/
+    - assets/voices/kokoro/espeak-ng-data/lang/inc/
+    - assets/voices/kokoro/espeak-ng-data/lang/ine/
+    - assets/voices/kokoro/espeak-ng-data/lang/ira/
+    - assets/voices/kokoro/espeak-ng-data/lang/iro/
+    - assets/voices/kokoro/espeak-ng-data/lang/itc/
+    - assets/voices/kokoro/espeak-ng-data/lang/jpx/
+    - assets/voices/kokoro/espeak-ng-data/lang/map/
+    - assets/voices/kokoro/espeak-ng-data/lang/miz/
+    - assets/voices/kokoro/espeak-ng-data/lang/myn/
+    - assets/voices/kokoro/espeak-ng-data/lang/poz/
+    - assets/voices/kokoro/espeak-ng-data/lang/roa/
+    - assets/voices/kokoro/espeak-ng-data/lang/sai/
+    - assets/voices/kokoro/espeak-ng-data/lang/sem/
+    - assets/voices/kokoro/espeak-ng-data/lang/sit/
+    - assets/voices/kokoro/espeak-ng-data/lang/tai/
+    - assets/voices/kokoro/espeak-ng-data/lang/trk/
+    - assets/voices/kokoro/espeak-ng-data/lang/urj/
+    - assets/voices/kokoro/espeak-ng-data/lang/zle/
+    - assets/voices/kokoro/espeak-ng-data/lang/zls/
+    - assets/voices/kokoro/espeak-ng-data/lang/zlw/
+    - assets/voices/kokoro/espeak-ng-data/voices/
+    - assets/voices/kokoro/espeak-ng-data/voices/!v/
 
 flutter_launcher_icons:
   android: true

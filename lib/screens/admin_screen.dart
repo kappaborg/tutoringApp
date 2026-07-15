@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import '../l10n/app_strings.dart';
@@ -12,8 +15,13 @@ import '../repositories/word_repository.dart';
 import '../services/book_share_service.dart';
 import '../services/image_storage_service.dart';
 import '../services/log_service.dart';
+import '../services/pdf_import_service.dart';
+import '../services/seed_baker_service.dart';
 import '../services/translation_lookup.dart';
 import '../utils/tokenizer.dart';
+import 'admin/bake_dialog.dart';
+import 'admin/book_list.dart';
+import 'admin/page_list.dart';
 
 /// Two-pane layout on wide screens, single-pane on phones. Manages books on
 /// the left and the selected book's pages on the right.
@@ -139,7 +147,7 @@ class _AdminScreenState extends State<AdminScreen> {
     final share = context.read<BookShareService>();
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Save book as…',
         fileName:
             '${book.title.replaceAll(RegExp(r'[^A-Za-z0-9_\- ]'), '_')}.book.zip',
@@ -162,7 +170,7 @@ class _AdminScreenState extends State<AdminScreen> {
     final share = context.read<BookShareService>();
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['zip'],
       );
@@ -177,6 +185,102 @@ class _AdminScreenState extends State<AdminScreen> {
       LogService.instance.error('Import book failed', e, st);
       messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
     }
+  }
+
+  /// Dev-only batch tool. Walks a source folder of PDFs and writes one
+  /// `.book.zip` per PDF into `<project>/assets/seed/oxford/`. The seed
+  /// service picks those zips up on a fresh install so the user never has
+  /// to import the library on-device.
+  ///
+  /// Only the user's local Mac dev environment can run this — it touches
+  /// the source tree on disk. On iOS / Android this button is hidden.
+  Future<void> _bakeSeedLibrary() async {
+    final messenger = ScaffoldMessenger.of(context);
+    // Capture providers before any async gap.
+    final pdfService = context.read<PdfImportService>();
+    final lookup = context.read<TranslationLookup>();
+    final share = context.read<BookShareService>();
+    final wordRepo = context.read<WordRepository>();
+
+    final sourceDir = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Pick a folder of PDFs to bake',
+    );
+    if (sourceDir == null) return;
+
+    // The seed zips have to land in the Flutter project's assets/ directory.
+    // When the app is launched via `flutter run -d macos` from the repo
+    // root, Directory.current is the project root.
+    final projectRoot = await _detectProjectRoot();
+    if (projectRoot == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not locate the project root (no pubspec.yaml in cwd). '
+            'Run via `flutter run -d macos` from the repo root.',
+          ),
+        ),
+      );
+      return;
+    }
+    final destDir =
+        Directory(p.join(projectRoot, 'assets', 'seed', 'oxford'));
+    if (!await destDir.exists()) await destDir.create(recursive: true);
+
+    final baker = SeedBakerService(
+      pdfService: pdfService,
+      lookup: lookup,
+      share: share,
+      bookRepo: _bookRepo,
+      pageRepo: _pageRepo,
+      wordRepo: wordRepo,
+      imageStorage: _imageStorage,
+    );
+
+    final progress = ValueNotifier<BakeProgress>(
+      const BakeProgress(done: 0, total: 0, currentTitle: ''),
+    );
+    if (!mounted) return;
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BakeDialog(progress: progress),
+    );
+
+    final report = await baker.bakeAll(
+      sourceDir: Directory(sourceDir),
+      destDirPath: destDir.path,
+      onProgress: (snap) => progress.value = snap,
+    );
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    await dialog;
+    if (report.success + report.failed == 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No PDFs found in that folder.')),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Baked ${report.success} book(s) to ${destDir.path} '
+          '(${report.failed > 0 ? "${report.failed} failed" : "no errors"})',
+        ),
+      ),
+    );
+    await _refresh();
+  }
+
+  Future<String?> _detectProjectRoot() async {
+    var dir = Directory.current;
+    for (var i = 0; i < 6; i++) {
+      if (await File(p.join(dir.path, 'pubspec.yaml')).exists()) {
+        return dir.path;
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+    return null;
   }
 
   Future<void> _bulkAutoFill(Book book) async {
@@ -343,6 +447,15 @@ class _AdminScreenState extends State<AdminScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (Platform.isMacOS) ...[
+                  FloatingActionButton.small(
+                    heroTag: 'bake',
+                    tooltip: 'Bake seed library (macOS dev only)',
+                    onPressed: _bakeSeedLibrary,
+                    child: const Icon(Icons.local_fire_department_outlined),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 FloatingActionButton.small(
                   heroTag: 'importZip',
                   tooltip: 'Import .book.zip',
@@ -378,7 +491,7 @@ class _AdminScreenState extends State<AdminScreen> {
                   children: [
                     SizedBox(
                       width: 320,
-                      child: _BookList(
+                      child: BookList(
                         books: _books,
                         selected: _selected,
                         onSelect: (b) async {
@@ -397,7 +510,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     ),
                     const VerticalDivider(width: 1),
                     Expanded(
-                      child: _PageList(
+                      child: PageList(
                         book: _selected,
                         pages: _pages,
                         imageStorage: _imageStorage,
@@ -409,7 +522,7 @@ class _AdminScreenState extends State<AdminScreen> {
                   ],
                 )
               : _selected == null
-                  ? _BookList(
+                  ? BookList(
                       books: _books,
                       selected: _selected,
                       onSelect: (b) async {
@@ -425,7 +538,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       onBulkAutoFill: _bulkAutoFill,
                       onExport: _exportBook,
                     )
-                  : _PageList(
+                  : PageList(
                       book: _selected,
                       pages: _pages,
                       imageStorage: _imageStorage,
@@ -434,199 +547,6 @@ class _AdminScreenState extends State<AdminScreen> {
                       onReorder: _reorder,
                       onBack: () => setState(() => _selected = null),
                     ),
-    );
-  }
-}
-
-class _BookList extends StatelessWidget {
-  const _BookList({
-    required this.books,
-    required this.selected,
-    required this.onSelect,
-    required this.onCreate,
-    required this.onRename,
-    required this.onDelete,
-    required this.onBulkAutoFill,
-    required this.onExport,
-  });
-  final List<Book> books;
-  final Book? selected;
-  final ValueChanged<Book> onSelect;
-  final VoidCallback onCreate;
-  final ValueChanged<Book> onRename;
-  final ValueChanged<Book> onDelete;
-  final ValueChanged<Book> onBulkAutoFill;
-  final ValueChanged<Book> onExport;
-
-  @override
-  Widget build(BuildContext context) {
-    if (books.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.library_books_outlined, size: 72),
-              const SizedBox(height: 12),
-              const Text('No books yet.'),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: onCreate,
-                icon: const Icon(Icons.add),
-                label: const Text('Create book'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return ListView.separated(
-      itemBuilder: (context, i) {
-        final b = books[i];
-        final isSelected = b.id == selected?.id;
-        return ListTile(
-          selected: isSelected,
-          title: Text(b.title),
-          subtitle: Text('Updated ${_relative(b.updatedAt)}'),
-          onTap: () => onSelect(b),
-          trailing: PopupMenuButton<String>(
-            onSelected: (v) {
-              switch (v) {
-                case 'rename':
-                  onRename(b);
-                case 'autofill':
-                  onBulkAutoFill(b);
-                case 'export':
-                  onExport(b);
-                case 'delete':
-                  onDelete(b);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'rename', child: Text('Rename')),
-              PopupMenuItem(
-                value: 'autofill',
-                child: Text('Auto-fill translations'),
-              ),
-              PopupMenuItem(
-                value: 'export',
-                child: Text('Export as .book.zip'),
-              ),
-              PopupMenuItem(value: 'delete', child: Text('Delete')),
-            ],
-          ),
-        );
-      },
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemCount: books.length,
-    );
-  }
-
-  String _relative(DateTime t) {
-    final diff = DateTime.now().difference(t);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 30) return '${diff.inDays}d ago';
-    return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
-  }
-}
-
-class _PageList extends StatelessWidget {
-  const _PageList({
-    required this.book,
-    required this.pages,
-    required this.imageStorage,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onReorder,
-    this.onBack,
-  });
-  final Book? book;
-  final List<BookPage> pages;
-  final ImageStorageService imageStorage;
-  final ValueChanged<BookPage> onEdit;
-  final ValueChanged<BookPage> onDelete;
-  final Future<void> Function(int oldIndex, int newIndex) onReorder;
-  final VoidCallback? onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    if (book == null) {
-      return const Center(child: Text('Select a book to see its pages.'));
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ListTile(
-          leading: onBack == null
-              ? const Icon(Icons.menu_book_outlined)
-              : IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: onBack,
-                ),
-          title: Text(book!.title, style: Theme.of(context).textTheme.titleLarge),
-          subtitle: Text('${pages.length} page${pages.length == 1 ? '' : 's'}'),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: pages.isEmpty
-              ? const Center(child: Text('No pages yet — tap "Add page".'))
-              : ReorderableListView.builder(
-                  itemBuilder: (context, i) {
-                    final p = pages[i];
-                    return ListTile(
-                      key: ValueKey(p.id),
-                      leading: SizedBox(
-                        width: 64,
-                        height: 64,
-                        child: FutureBuilder(
-                          future: imageStorage.resolve(p.imagePath),
-                          builder: (context, snap) {
-                            if (!snap.hasData) return const SizedBox.shrink();
-                            return FutureBuilder<bool>(
-                              future: snap.data!.exists(),
-                              builder: (context, e) {
-                                if (e.data == true) {
-                                  return ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Image.file(snap.data!, fit: BoxFit.cover),
-                                  );
-                                }
-                                return const Icon(Icons.broken_image_outlined);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      title: Text('Page ${p.pageNumber}'),
-                      subtitle: Text(
-                        p.sentenceText,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () => onEdit(p),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => onDelete(p),
-                          ),
-                          ReorderableDragStartListener(
-                            index: i,
-                            child: const Icon(Icons.drag_handle),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  itemCount: pages.length,
-                  onReorder: onReorder,
-                ),
-        ),
-      ],
     );
   }
 }
@@ -657,3 +577,4 @@ Future<String?> _promptText(
     ),
   );
 }
+

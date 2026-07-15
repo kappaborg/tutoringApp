@@ -46,3 +46,7 @@ app.*.map.json
 picture_book/
 *.bak
 .claude/
+assets/voices/*
+!assets/voices/README.md
+assets/seed/oxford/*
+!assets/seed/oxford/README.md

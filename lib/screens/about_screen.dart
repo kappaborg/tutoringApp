@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../l10n/app_strings.dart';
+import '../services/license_service.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -9,6 +13,8 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final license = context.watch<LicenseService>().current;
+    final t = AppStrings.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('About')),
       body: SafeArea(
@@ -47,6 +53,27 @@ class AboutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Center(child: _OfflineBadge()),
+            if (license != null) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  t.licensedTo(license.customer),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.outline,
+                      ),
+                ),
+              ),
+              if (license.issuedAtIso.isNotEmpty)
+                Center(
+                  child: Text(
+                    '${license.tier} · ${license.issuedAtIso}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.outline,
+                        ),
+                  ),
+                ),
+            ],
             const SizedBox(height: 24),
             const _Section(
               title: 'What this app does',

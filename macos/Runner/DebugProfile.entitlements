@@ -2,8 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!--
+      DEBUG: sandbox is OFF so the headless `--bake-dir=…` flow can read
+      PDFs from ~/Downloads and write `.book.zip` files back into the
+      repo's assets/ directory. Release.entitlements keeps the sandbox ON.
+      Verified at build time by tool/check_offline.dart.
+    -->
     <key>com.apple.security.app-sandbox</key>
-    <true/>
+    <false/>
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
     <!--

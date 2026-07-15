@@ -8,8 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 /// Handles image picking, EXIF-bake, downscale, JPEG re-encode, and orphan
-/// cleanup. Images live in `<docs>/images/<uuid>.jpg`; the DB stores the
-/// relative path "images/<uuid>.jpg".
+/// cleanup. Images live in `[docs]/images/[uuid].jpg`; the DB stores the
+/// relative path "images/[uuid].jpg".
 class ImageStorageService {
   ImageStorageService({Uuid? uuid}) : _uuid = uuid ?? const Uuid();
   final Uuid _uuid;
@@ -31,7 +31,7 @@ class ImageStorageService {
       final picked = await picker.pickImage(source: ImageSource.gallery);
       return picked?.path;
     }
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
     );

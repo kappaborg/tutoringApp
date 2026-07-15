@@ -1,18 +1,124 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'book_share_service.dart';
+import 'log_service.dart';
+import 'prefs_service.dart';
+
+/// Progress snapshot for the first-launch Oxford-library import. UI binds to
+/// [SeedService.progress] to render a loading screen.
+@immutable
+class SeedProgress {
+  const SeedProgress({
+    required this.done,
+    required this.total,
+    required this.currentTitle,
+    required this.inProgress,
+  });
+  final int done;
+  final int total;
+  final String currentTitle;
+  final bool inProgress;
+
+  static const idle =
+      SeedProgress(done: 0, total: 0, currentTitle: '', inProgress: false);
+}
+
 /// Seeds a sample book on first launch so the reader never starts on a blank
 /// screen. Images are generated procedurally so we bundle no copyrighted
-/// content.
+/// content. On builds that ship a baked Oxford library (`.book.zip` files
+/// under `assets/seed/oxford/`), those are imported on first launch.
 class SeedService {
+  static const String _oxfordAssetPrefix = 'assets/seed/oxford/';
+
+  /// Broadcasts progress of the Oxford-library import. UI screens listen
+  /// here to render a "Setting up your library…" screen.
+  static final ValueNotifier<SeedProgress> progress =
+      ValueNotifier<SeedProgress>(SeedProgress.idle);
+
   static Future<void> seedIfEmpty(Database db) async {
     final existing = await db.query('books', limit: 1);
     if (existing.isNotEmpty) return;
     await _seed(db);
+  }
+
+  /// Imports every `.book.zip` shipped under `assets/seed/oxford/` into the
+  /// user's DB. Idempotent: tracked via [PrefsService.oxfordSeeded]. Failures
+  /// for individual books are logged and skipped so a corrupt zip doesn't
+  /// kill the whole import.
+  static Future<void> importBundledOxford({
+    required PrefsService prefs,
+    required BookShareService share,
+  }) async {
+    if (prefs.oxfordSeeded) return;
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final zipAssets = manifest
+        .listAssets()
+        .where(
+          (a) => a.startsWith(_oxfordAssetPrefix) && a.endsWith('.book.zip'),
+        )
+        .toList()
+      ..sort();
+    if (zipAssets.isEmpty) {
+      // No baked library in this build — nothing to do, and don't mark the
+      // pref so a later install that DOES bundle them can still seed.
+      return;
+    }
+
+    final tmp = await getTemporaryDirectory();
+    final stagingDir = Directory(p.join(tmp.path, 'oxford_seed_staging'));
+    if (await stagingDir.exists()) await stagingDir.delete(recursive: true);
+    await stagingDir.create(recursive: true);
+
+    progress.value = SeedProgress(
+      done: 0,
+      total: zipAssets.length,
+      currentTitle: '',
+      inProgress: true,
+    );
+
+    var success = 0;
+    for (var i = 0; i < zipAssets.length; i++) {
+      final asset = zipAssets[i];
+      final title = p.basenameWithoutExtension(
+        p.basenameWithoutExtension(asset),
+      );
+      progress.value = SeedProgress(
+        done: i,
+        total: zipAssets.length,
+        currentTitle: title,
+        inProgress: true,
+      );
+      try {
+        final data = await rootBundle.load(asset);
+        final stagePath = p.join(stagingDir.path, p.basename(asset));
+        await File(stagePath)
+            .writeAsBytes(data.buffer.asUint8List(), flush: true);
+        await share.importBook(stagePath);
+        await File(stagePath).delete();
+        success++;
+      } catch (e, st) {
+        LogService.instance.error('Oxford seed import failed for $asset', e, st);
+      }
+    }
+
+    await stagingDir.delete(recursive: true);
+    await prefs.setOxfordSeeded(true);
+    progress.value = SeedProgress(
+      done: zipAssets.length,
+      total: zipAssets.length,
+      currentTitle: '',
+      inProgress: false,
+    );
+    LogService.instance.info(
+      'Oxford seed: imported $success of ${zipAssets.length} books',
+    );
   }
 
   static Future<void> _seed(Database db) async {

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../services/backup_service.dart';
 import '../services/log_service.dart';
+import '../services/neural_tts_service.dart';
 import '../services/prefs_service.dart';
 import '../services/tts_service.dart';
 import '../state/admin_auth.dart';
@@ -101,6 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const _SectionHeader(label: 'Speech'),
+          _NeuralVoiceToggle(),
           ListTile(
             title: const Text('Speech rate'),
             subtitle: Slider(
@@ -246,7 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<bool> _exportBackup() async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Save backup ZIP',
         fileName: 'picturebook_backup.zip',
         type: FileType.custom,
@@ -269,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final library = context.read<LibraryNotifier>();
     final errorColor = Theme.of(context).colorScheme.error;
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['zip'],
       );
@@ -315,6 +317,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       LogService.instance.error('Import backup failed', e, st);
       messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
     }
+  }
+}
+
+class _NeuralVoiceToggle extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final prefs = context.watch<PrefsService>();
+    final neural = context.watch<NeuralTtsService>();
+    final available = neural.availability;
+    final ready = available == NeuralTtsAvailability.ready;
+    final subtitle = switch (available) {
+      NeuralTtsAvailability.ready =>
+        'Studio-quality neural voice (bundled, ~140 MB).',
+      NeuralTtsAvailability.missingAssets =>
+        'Voice model not bundled in this build. Run '
+            '`dart run tool/fetch_kokoro.dart` to add it.',
+      NeuralTtsAvailability.initFailed =>
+        'Neural engine failed to load — falling back to the system voice.',
+      NeuralTtsAvailability.unknown => 'Loading neural engine…',
+    };
+    return SwitchListTile(
+      title: const Text('Natural neural voice'),
+      subtitle: Text(subtitle),
+      value: ready && prefs.neuralVoiceEnabled,
+      onChanged: ready
+          ? (v) async {
+              await prefs.setNeuralVoiceEnabled(v);
+              if (context.mounted) (context as Element).markNeedsBuild();
+            }
+          : null,
+    );
   }
 }
 

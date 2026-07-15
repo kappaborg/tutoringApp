@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/prefs_service.dart';
-import '../services/tts_service.dart';
+import '../services/tts_router.dart';
 import '../state/settings_notifier.dart';
 
 /// Compact persistent toolbar shown between the sentence area and the page
@@ -17,7 +17,7 @@ class ReaderToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final prefs = context.watch<PrefsService>();
-    final tts = context.watch<TtsService>();
+    final tts = context.watch<TtsRouter>();
     final settings = context.watch<SettingsNotifier>();
     final scheme = Theme.of(context).colorScheme;
     final isSentence = settings.readingMode == ReadingMode.sentence;

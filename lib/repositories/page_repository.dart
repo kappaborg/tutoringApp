@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 
 import '../db/db_helper.dart';
@@ -41,6 +43,8 @@ class PageRepository {
     required String sentenceText,
     int? pageNumber,
     String chineseTranslation = '',
+    String audioPath = '',
+    Map<String, String> sentenceAudioMap = const <String, String>{},
   }) async {
     final db = await _db;
     return db.transaction<int>((txn) async {
@@ -51,6 +55,8 @@ class PageRepository {
         'image_path': imagePath,
         'sentence_text': sentenceText,
         'chinese_translation': chineseTranslation,
+        'audio_path': audioPath,
+        'sentence_audio_map': jsonEncode(sentenceAudioMap),
       });
       await txn.update(
         'books',

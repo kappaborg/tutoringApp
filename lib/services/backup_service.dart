@@ -71,9 +71,6 @@ class BackupService {
     archive.addFile(ArchiveFile(_manifestName, manifestBytes.length, manifestBytes));
 
     final encoded = ZipEncoder().encode(archive);
-    if (encoded == null) {
-      throw const FileSystemException('Failed to encode ZIP archive');
-    }
     final dest = File(destinationPath);
     await dest.parent.create(recursive: true);
     await dest.writeAsBytes(encoded, flush: true);

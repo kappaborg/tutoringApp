@@ -47,6 +47,23 @@ class AppStrings {
   String get importBackup => _pick('Import backup', '导入备份');
   String get verifiedOffline => _pick('No network — verified offline', '完全离线运行');
 
+  // Activation
+  String get activateTitle => _pick('Activate Picture Book', '激活图画书');
+  String get activateSubtitle => _pick(
+        'Paste the activation code you received after purchase.',
+        '请粘贴购买后收到的激活码。',
+      );
+  String get activationCodeLabel => _pick('Activation code', '激活码');
+  String get activate => _pick('Activate', '激活');
+  String get activationFailed => _pick(
+        'This code is not valid. Check that you copied the entire string.',
+        '激活码无效，请确认已完整复制。',
+      );
+  String activationSuccess(String customer) =>
+      _pick('Welcome, $customer!', '欢迎，$customer！');
+  String licensedTo(String customer) =>
+      _pick('Licensed to: $customer', '授权给：$customer');
+
   String _pick(String en, String zh) => locale.languageCode == 'zh' ? zh : en;
 }
 

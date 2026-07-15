@@ -1,18 +1,22 @@
 import 'package:sqflite/sqflite.dart';
 
 class Migrations {
-  static const int latestVersion = 3;
+  static const int latestVersion = 5;
 
   static Future<void> onCreate(Database db, int version) async {
     await _v1(db);
     await _v2(db);
     await _v3(db);
+    await _v4(db);
+    await _v5(db);
   }
 
   static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 1) await _v1(db);
     if (oldVersion < 2) await _v2(db);
     if (oldVersion < 3) await _v3(db);
+    if (oldVersion < 4) await _v4(db);
+    if (oldVersion < 5) await _v5(db);
   }
 
   static Future<void> _v1(Database db) async {
@@ -73,6 +77,31 @@ class Migrations {
     if (hasIt) return;
     await db.execute(
       "ALTER TABLE pages ADD COLUMN chinese_translation TEXT NOT NULL DEFAULT ''",
+    );
+  }
+
+  /// v4: optional pre-rendered neural-TTS audio file per page. Empty means
+  /// "no bundled audio — fall back to live inference."
+  static Future<void> _v4(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(pages)");
+    final hasIt = cols.any((row) => row['name'] == 'audio_path');
+    if (hasIt) return;
+    await db.execute(
+      "ALTER TABLE pages ADD COLUMN audio_path TEXT NOT NULL DEFAULT ''",
+    );
+  }
+
+  /// v5: per-sentence audio map. The reader splits each page's text into
+  /// individual sentences for sentence-mode taps; this column stores a
+  /// JSON `{sentence_text: audio_relpath}` map so each sub-sentence can
+  /// play from a bundled clip instead of triggering live inference.
+  /// Empty `{}` means no per-sentence bake was done.
+  static Future<void> _v5(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(pages)");
+    final hasIt = cols.any((row) => row['name'] == 'sentence_audio_map');
+    if (hasIt) return;
+    await db.execute(
+      "ALTER TABLE pages ADD COLUMN sentence_audio_map TEXT NOT NULL DEFAULT '{}'",
     );
   }
 }

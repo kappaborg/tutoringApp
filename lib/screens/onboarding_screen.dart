@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/license_service.dart';
 import '../services/prefs_service.dart';
 
 /// First-launch 4-screen welcome tour. Persists completion via
@@ -45,9 +46,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _finish() async {
     final prefs = context.read<PrefsService>();
+    final license = context.read<LicenseService>();
     await prefs.markOnboardingDone();
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/');
+    // Onboarded but not yet activated → route through activation first.
+    final next = license.isActivated ? '/' : '/activation';
+    Navigator.of(context).pushReplacementNamed(next);
   }
 
   @override

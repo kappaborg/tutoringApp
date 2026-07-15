@@ -5,13 +5,17 @@ import 'package:provider/provider.dart';
 
 import 'l10n/app_strings.dart';
 import 'screens/about_screen.dart';
+import 'screens/activation_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/page_editor_screen.dart';
 import 'screens/pdf_import_screen.dart';
 import 'screens/reader_screen.dart';
+import 'screens/seed_loading_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/license_service.dart';
 import 'services/prefs_service.dart';
+import 'services/seed_service.dart';
 import 'state/locale_notifier.dart';
 import 'state/settings_notifier.dart';
 
@@ -44,6 +48,7 @@ class PictureBookApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Picture Book',
+      debugShowCheckedModeBanner: false,
       themeMode: settings.themeMode,
       theme: ThemeData(
         colorScheme: lightScheme,
@@ -86,14 +91,22 @@ class PictureBookApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      initialRoute:
-          context.read<PrefsService>().onboardingDone ? '/' : '/onboarding',
+      initialRoute: _initialRoute(context),
       onGenerateRoute: (settings) {
         switch (settings.name) {
           case '/':
-            return MaterialPageRoute(builder: (_) => const ReaderScreen());
+            return MaterialPageRoute(
+              builder: (_) => ValueListenableBuilder(
+                valueListenable: SeedService.progress,
+                builder: (_, value, __) => value.inProgress
+                    ? SeedLoadingScreen(progress: value)
+                    : const ReaderScreen(),
+              ),
+            );
           case '/onboarding':
             return MaterialPageRoute(builder: (_) => const OnboardingScreen());
+          case '/activation':
+            return MaterialPageRoute(builder: (_) => const ActivationScreen());
           case '/admin':
             return MaterialPageRoute(builder: (_) => const AdminScreen());
           case '/admin/page-editor':
@@ -116,5 +129,16 @@ class PictureBookApp extends StatelessWidget {
         return null;
       },
     );
+  }
+
+  /// Picks the first screen the user sees. The order is:
+  ///   1. Onboarding, if it's never been completed.
+  ///   2. Activation, if no valid license is stored.
+  ///   3. Home (`/`).
+  String _initialRoute(BuildContext context) {
+    final prefs = context.read<PrefsService>();
+    if (!prefs.onboardingDone) return '/onboarding';
+    if (!context.read<LicenseService>().isActivated) return '/activation';
+    return '/';
   }
 }

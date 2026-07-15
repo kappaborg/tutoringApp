@@ -30,6 +30,9 @@ class PrefsService {
   static const _kOnboardingDone = 'onboarding_done';
   static const _kUiLocale = 'ui_locale';
   static const _kStatsPrefix = 'stats:';
+  static const _kNeuralVoice = 'neural_voice_enabled';
+  static const _kOxfordSeeded = 'oxford_seeded';
+  static const _kLicenseCode = 'license_code';
 
   static Future<PrefsService> init() async {
     final p = await SharedPreferences.getInstance();
@@ -140,6 +143,34 @@ class PrefsService {
     final key = '$_kStatsPrefix$kind:$day';
     final current = _prefs.getInt(key) ?? 0;
     await _prefs.setInt(key, current + 1);
+  }
+
+  // ── Neural voice toggle ──────────────────────────────────────────────────
+  bool get neuralVoiceEnabled => _prefs.getBool(_kNeuralVoice) ?? true;
+  Future<void> setNeuralVoiceEnabled(bool v) async =>
+      _prefs.setBool(_kNeuralVoice, v);
+
+  // ── Bundled Oxford seed library ──────────────────────────────────────────
+  bool get oxfordSeeded => _prefs.getBool(_kOxfordSeeded) ?? false;
+  Future<void> setOxfordSeeded(bool v) async =>
+      _prefs.setBool(_kOxfordSeeded, v);
+
+  // ── License code ─────────────────────────────────────────────────────────
+  /// Persisted activation code. Null means "no activation done yet" → app
+  /// shows the activation screen. The code itself is verified on every load
+  /// by [LicenseService] against the embedded public key.
+  String? get licenseCode {
+    final v = _prefs.getString(_kLicenseCode);
+    if (v == null || v.isEmpty) return null;
+    return v;
+  }
+
+  Future<void> setLicenseCode(String? code) async {
+    if (code == null || code.isEmpty) {
+      await _prefs.remove(_kLicenseCode);
+    } else {
+      await _prefs.setString(_kLicenseCode, code);
+    }
   }
 
   /// Sum of [kind] over the last [days] including today.
