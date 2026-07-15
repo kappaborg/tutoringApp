@@ -44,6 +44,26 @@ flutter run -d <device_id>   # `flutter devices` lists targets
 
 Requires a recent stable Flutter SDK (Dart ≥ 3.4).
 
+### Full setup on a fresh machine
+
+To restore the complete app — including the two large asset sets that are
+not in git (see below) — the whole sequence is:
+
+```sh
+git clone https://github.com/kappaborg/tutoringApp.git
+cp -R ~/Backups/picturebook-seed/oxford/* tutoringApp/assets/seed/oxford/
+cd tutoringApp
+dart run tool/fetch_kokoro.dart    # re-downloads the neural voice (~350 MB)
+flutter pub get && flutter test
+```
+
+The `cp` step assumes the baked Oxford library backup at
+`~/Backups/picturebook-seed/oxford/` (166 `.book.zip` files, ~2.3 GB) —
+that backup lives on the maintainer's machine. Contributors who don't have
+it should ask the maintainer (@kappaborg) for a copy, or re-bake the set
+from the source PDFs as described below. The app still runs without it;
+first launch just skips the seed import.
+
 ### Large assets (not in git)
 
 Two asset sets are gitignored because of their size. The app runs without
@@ -53,7 +73,7 @@ import is skipped — but a release build needs both.
 | Asset | Size | How to get it |
 |---|---|---|
 | `assets/voices/kokoro/` — Kokoro neural TTS model | ~350 MB on disk | `dart run tool/fetch_kokoro.dart` (one-time download from the sherpa-onnx releases, Apache-2.0) |
-| `assets/seed/oxford/*.book.zip` — bundled book library | ~100–200 MB | Baked from source PDFs on macOS: `flutter run -d macos` → Admin → **Bake seed library** → pick the PDF folder. See `assets/seed/oxford/README.md`. |
+| `assets/seed/oxford/*.book.zip` — bundled book library | ~2.3 GB (166 books) | Copy from the maintainer's backup (see above), or bake from source PDFs on macOS: `flutter run -d macos` → Admin → **Bake seed library** → pick the PDF folder. See `assets/seed/oxford/README.md`. |
 
 Both are build-time steps on a developer machine; the shipped app never
 downloads anything.
