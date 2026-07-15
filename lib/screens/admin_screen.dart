@@ -415,8 +415,8 @@ class _AdminScreenState extends State<AdminScreen> {
     await _refresh(selectBookId: page.bookId);
   }
 
+  // onReorderItem already adjusts newIndex for the removed item.
   Future<void> _reorder(int oldIndex, int newIndex) async {
-    if (newIndex > oldIndex) newIndex -= 1;
     final pages = List<BookPage>.from(_pages);
     final moved = pages.removeAt(oldIndex);
     pages.insert(newIndex, moved);

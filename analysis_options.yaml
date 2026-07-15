@@ -4,6 +4,8 @@ analyzer:
   exclude:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    # Stale local copy of the project; gitignored, not part of the build.
+    - "picture_book/**"
   language:
     strict-casts: true
     strict-inference: true

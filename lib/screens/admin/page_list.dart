@@ -104,7 +104,7 @@ class PageList extends StatelessWidget {
                     );
                   },
                   itemCount: pages.length,
-                  onReorder: onReorder,
+                  onReorderItem: onReorder,
                 ),
         ),
       ],
