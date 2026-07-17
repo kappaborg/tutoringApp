@@ -329,7 +329,7 @@ class _NeuralVoiceToggle extends StatelessWidget {
     final ready = available == NeuralTtsAvailability.ready;
     final subtitle = switch (available) {
       NeuralTtsAvailability.ready =>
-        'Studio-quality neural voice (bundled, ~140 MB).',
+        'Studio-quality neural voice, bundled with the app.',
       NeuralTtsAvailability.missingAssets =>
         'Voice model not bundled in this build. Run '
             '`dart run tool/fetch_kokoro.dart` to add it.',
