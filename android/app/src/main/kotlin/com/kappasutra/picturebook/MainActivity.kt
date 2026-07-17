@@ -1,4 +1,4 @@
-package com.example.picture_book
+package com.kappasutra.picturebook
 
 import io.flutter.embedding.android.FlutterActivity
 

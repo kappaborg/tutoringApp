@@ -50,27 +50,8 @@ class PictureBookApp extends StatelessWidget {
       title: 'Picture Book',
       debugShowCheckedModeBanner: false,
       themeMode: settings.themeMode,
-      theme: ThemeData(
-        colorScheme: lightScheme,
-        useMaterial3: true,
-        fontFamily: fontFamily,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        textTheme: const TextTheme(
-          headlineSmall: TextStyle(fontSize: 24),
-          headlineMedium: TextStyle(fontSize: 28),
-          bodyLarge: TextStyle(fontSize: 18),
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: lightScheme.primary,
-          foregroundColor: lightScheme.onPrimary,
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: darkScheme,
-        useMaterial3: true,
-        fontFamily: fontFamily,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
+      theme: _buildTheme(lightScheme, fontFamily),
+      darkTheme: _buildTheme(darkScheme, fontFamily),
       locale: localeNotifier.locale,
       localizationsDelegates: const [
         AppStrings.delegate,
@@ -128,6 +109,29 @@ class PictureBookApp extends StatelessWidget {
         }
         return null;
       },
+    );
+  }
+
+  /// One builder for both brightnesses so dark mode keeps the same
+  /// reading-oriented type scale and component shapes as light mode.
+  ThemeData _buildTheme(ColorScheme scheme, String? fontFamily) {
+    final dark = scheme.brightness == Brightness.dark;
+    return ThemeData(
+      colorScheme: scheme,
+      useMaterial3: true,
+      fontFamily: fontFamily,
+      visualDensity: VisualDensity.adaptivePlatformDensity,
+      textTheme: const TextTheme(
+        headlineSmall: TextStyle(fontSize: 24),
+        headlineMedium: TextStyle(fontSize: 28),
+        bodyLarge: TextStyle(fontSize: 18),
+      ),
+      appBarTheme: AppBarTheme(
+        // A bright primary bar is glaring in dark mode; use an elevated
+        // surface there, per Material 3 dark-surface guidance.
+        backgroundColor: dark ? scheme.surfaceContainerHigh : scheme.primary,
+        foregroundColor: dark ? scheme.onSurface : scheme.onPrimary,
+      ),
     );
   }
 
